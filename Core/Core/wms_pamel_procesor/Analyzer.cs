@@ -8,14 +8,22 @@ namespace Core.wms_pamel_procesor
     class Analyzer
     {
         private List<ServerStreams> serverStreams;
-        //private List<ServerAlert> ServerAlerts;
-        //private List<StreamAlert> StreamAlerts;
-        private List<Alert> Alerts;
+        private Config config;
 
-        public Analyzer (List<ServerStreams> Lss)
+        //Alert lists
+        private List<Alert> Alerts; // Aletrs streams OFFLINE
+        private List<LowBitrateAlert> lowBitrateAlertlerts;
+        private List<UptimeAlert> uptimeAlerts;
+
+
+        public Analyzer (Config conf, List<ServerStreams> Lss)
         {
+            config = conf;
             serverStreams = Lss;
+
             Alerts = new List<Alert>();
+            lowBitrateAlertlerts = new List<LowBitrateAlert>();
+            uptimeAlerts = new List<UptimeAlert>();
         }
 
         public void Analyze()
@@ -26,7 +34,7 @@ namespace Core.wms_pamel_procesor
                 {
                     x.Streams.ForEach(s =>
                     {
-                        CheckStream(s, x.Name);
+                        CheckStream(s, x.Name, x.ID);
                     });
                 }
             });
@@ -37,6 +45,16 @@ namespace Core.wms_pamel_procesor
             return Alerts;
         }
 
+        public List<LowBitrateAlert> GetBitrateAlerts()
+        {
+            return lowBitrateAlertlerts;
+        }
+
+        public List<UptimeAlert> GetUptimeAlerts()
+        {
+            return uptimeAlerts;
+        }
+
         private bool CheckServer(Server server)
         {
             if (!IsServerOnline(server))
@@ -44,34 +62,63 @@ namespace Core.wms_pamel_procesor
             return true;
         }
 
-        private void CheckStream(Stream stream, string serName)
+        private void CheckStream(Stream stream, string serName, string serId)
         {
-            if(IsStreamOnline(stream, serName))
+            if(IsStreamOnline(stream, serName, serId))
             {
-                bandwodthCheck();
-                uptimeCheck();
+                BandwodthCheck(stream, serName, serId);
+                UptimeCheck(stream, serName, serId);
             }
 
         }
 
-        private void bandwodthCheck()
+        private void BandwodthCheck(Stream stream, string serverName, string serverID)
         {
-            return;
+            if(stream.Bandwidth < config.BandwidthThreshold)
+            {
+                AddLowBitrateAllert(
+                    FormatToOutString(stream, serverName, serverID)
+                    );
+            }
         }
 
-        private void uptimeCheck()
+        private void UptimeCheck(Stream stream, string serverName, string serverID)
         {
-            return;
+            DateTime thisDate = DateTime.Now;
+            DateTime StreamDate = UnixTimeStampToDatetime(stream.Publish_time);
+            var comparison = (thisDate - StreamDate).TotalMinutes;
+
+            if(comparison < config.UptimeTreshold)
+            {
+                AddUptimeAlert(
+                    FormatToOutString(stream, serverName, serverID, comparison.ToString().Substring(0,2).Trim(',') + " мин")
+                    );
+            }
         }
 
-        private bool IsStreamOnline(Stream stream, string serverName)
+        private DateTime UnixTimeStampToDatetime(double unixTimeStamp)
+        {
+            DateTime dtDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0, System.DateTimeKind.Utc);
+            dtDateTime = dtDateTime.AddSeconds(unixTimeStamp).ToLocalTime();
+            return dtDateTime;
+        }
+
+        private bool IsStreamOnline(Stream stream, string serverName, string severID)
         {
             if(stream.Status != "online")
             {
-                AddAlert(string.Format("\n{0}/{1}\nСервер: {2}\n", stream.Application, stream.stream, serverName));
+                AddAlert(
+                    FormatToOutString(stream, serverName, severID)
+                    );
                 return false;
             }
             return true;
+        }
+
+        private string FormatToOutString(Stream stream, string serverName, string severID, string addData = "")
+        {
+            return string.Format("<a href=\"https://wmspanel.com/nimble_live_streams/outgoing/{3}\">{0}/{1}</a> {4}\n      <i>Сервер: {2}</i>\n",
+                    stream.Application, stream.stream, serverName, severID, addData);
         }
 
         private bool IsServerOnline(Server server)
@@ -82,6 +129,16 @@ namespace Core.wms_pamel_procesor
                 return false;
             }
             return true;
+        }
+
+        private void AddUptimeAlert(string s)
+        {
+            uptimeAlerts.Add(new UptimeAlert(s));
+        }
+
+        private void AddLowBitrateAllert(string s)
+        {
+            lowBitrateAlertlerts.Add(new LowBitrateAlert(s));
         }
 
         private void AddAlert(string s)

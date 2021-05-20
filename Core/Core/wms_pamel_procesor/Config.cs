@@ -8,6 +8,8 @@ namespace Core.wms_pamel_procesor
     {
         public string ClientId { get; set; }
         public string ApiKey { get; set; }
+        public int BandwidthThreshold { get; set; }
+        public double UptimeTreshold { get; set; }
 
         public Config(string clientId, string apiKey)
         {

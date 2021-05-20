@@ -16,7 +16,7 @@ namespace Core.wms_pamel_procesor.models
         public string Resolution { get; set; }
 
         public int Bandwidth { get; set; }
-        public int Publish_time { get; set; }
+        public double Publish_time { get; set; }
 
     }
 }

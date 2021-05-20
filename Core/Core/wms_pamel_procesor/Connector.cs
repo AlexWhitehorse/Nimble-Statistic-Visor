@@ -17,12 +17,6 @@ namespace Core.wms_pamel_procesor
             _config = conf;
         }
 
-        public void tests()
-        {
-            //GetServersList().Wait();
-            var test = GetAllServerStreamsFromApi();
-        }
-
         /// <summary>
         /// Gets information of servers by API
         /// Gets information about streams and returns All servers with its streams
@@ -33,13 +27,35 @@ namespace Core.wms_pamel_procesor
             List<Server> Servers = GetServersListFromApi().Result;
             List<ServerStreams> serverStreams = ToListServerStreams(Servers);
 
-            serverStreams.ForEach(x=> {
-                var ServerID = x.ID;
-                List<Stream> streams = GetLiveStreamsOnServerFromApi(ServerID);
-                x.Streams = streams;
-            });
+            List<Task<List<Stream>>> tasks = new List<Task<List<Stream>>>();
 
+            for (int i = 0; i < serverStreams.Count; i++)
+            {
+                var ServerID = serverStreams[i].ID;
+                var task = CreateTaskGetingLiveStreams(ServerID);
+                tasks.Add(task);
+            }
+
+            var arrTasks = tasks.ToArray();
+            Task.WaitAll(arrTasks);
+
+            for (int i = 0; i < serverStreams.Count; i++)
+            {
+                var task = arrTasks[i];
+                var result = GetResultTask(task);
+                serverStreams[i].Streams = result;
+            }
             return serverStreams;
+        }
+
+        private List<Stream> GetResultTask(Task<List<Stream>> task)
+        {
+            return task.Result;
+        }
+
+        private async Task<List<Stream>> CreateTaskGetingLiveStreams(string ServerID)
+        {
+            return await Task.Run(()=> GetLiveStreamsOnServerFromApi(ServerID));
         }
 
         private List<Stream> GetLiveStreamsOnServerFromApi(string serverId)
@@ -49,7 +65,9 @@ namespace Core.wms_pamel_procesor
 
             var kvpJson = JsonConvert.DeserializeObject<Dictionary<string, Object>>(responseBody);
             var streamsJson = kvpJson["streams"].ToString();
+
             return JsonConvert.DeserializeObject<List<Stream>>(streamsJson);
+
         }
 
         /// <summary>
@@ -60,7 +78,8 @@ namespace Core.wms_pamel_procesor
         private async Task<List<Server>> GetServersListFromApi()
         {
             string url = AddAuthDataToApiLink("https://api.wmspanel.com/v1/server");
-            string responseBody = SenRequestToWMSApi(url).Result;
+
+            string responseBody = await SenRequestToWMSApi(url);
 
             var kvpJson = JsonConvert.DeserializeObject<Dictionary<string, Object>>(responseBody);
             var serversJson = kvpJson["servers"].ToString();
@@ -87,11 +106,23 @@ namespace Core.wms_pamel_procesor
             return ServerStreams;
         }
 
+        /// <summary>
+        /// Throws exceptoin if WMS pannwel is not configured
+        /// </summary>
+        /// <param name="url"></param>
+        /// <returns></returns>
         private async Task<string> SenRequestToWMSApi(string url)
         {
-            HttpClient client = new HttpClient();
-            string responseBody = await client.GetStringAsync(url);
-            return responseBody;
+            try
+            {
+                HttpClient client = new HttpClient();
+                string responseBody = await client.GetStringAsync(url);
+                return responseBody;
+            }
+            catch (HttpRequestException)
+            {
+                throw new Exception("HttpRequestException: Can not get access to WMS pannel API(Check allowed hosts in pannel)");
+            }
         }
 
         private string AddAuthDataToApiLink(string ConnString)
