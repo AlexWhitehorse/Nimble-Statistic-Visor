@@ -1,4 +1,5 @@
-﻿using Core.wms_pamel_procesor.models;
+﻿using Core.alerts;
+using Core.wms_pamel_procesor.models;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,12 +9,9 @@ namespace Core.wms_pamel_procesor
     class Analyzer
     {
         private List<ServerStreams> serverStreams;
-        private Config config;
 
-        //Alert lists
-        private List<Alert> Alerts; // Aletrs streams OFFLINE
-        private List<LowBitrateAlert> lowBitrateAlertlerts;
-        private List<UptimeAlert> uptimeAlerts;
+        private Config config;
+        private Alerts alerts; 
 
 
         public Analyzer (Config conf, List<ServerStreams> Lss)
@@ -21,9 +19,7 @@ namespace Core.wms_pamel_procesor
             config = conf;
             serverStreams = Lss;
 
-            Alerts = new List<Alert>();
-            lowBitrateAlertlerts = new List<LowBitrateAlert>();
-            uptimeAlerts = new List<UptimeAlert>();
+            alerts = new Alerts();
         }
 
         public void Analyze()
@@ -40,19 +36,9 @@ namespace Core.wms_pamel_procesor
             });
         }
 
-        public List<Alert> getAlerts()
+        public Alerts getAlerts()
         {
-            return Alerts;
-        }
-
-        public List<LowBitrateAlert> GetBitrateAlerts()
-        {
-            return lowBitrateAlertlerts;
-        }
-
-        public List<UptimeAlert> GetUptimeAlerts()
-        {
-            return uptimeAlerts;
+            return alerts;
         }
 
         private bool CheckServer(Server server)
@@ -76,8 +62,11 @@ namespace Core.wms_pamel_procesor
         {
             if(stream.Bandwidth < config.BandwidthThreshold)
             {
-                AddLowBitrateAllert(
-                    FormatToOutString(stream, serverName, serverID)
+                alerts.AddLowBitrateAlert(
+                    stream.Application,
+                    stream.stream,
+                    serverName,
+                    serverID
                     );
             }
         }
@@ -90,9 +79,12 @@ namespace Core.wms_pamel_procesor
 
             if(comparison < config.UptimeTreshold)
             {
-                AddUptimeAlert(
-                    FormatToOutString(stream, serverName, serverID, comparison.ToString().Substring(0,2).Trim(',') + " мин")
-                    );
+                alerts.AddUptimeAlert(
+                    stream.Application, 
+                    stream.stream, 
+                    serverName, 
+                    serverID, 
+                    comparison.ToString().Substring(0, 2).Trim(','));
             }
         }
 
@@ -103,47 +95,31 @@ namespace Core.wms_pamel_procesor
             return dtDateTime;
         }
 
-        private bool IsStreamOnline(Stream stream, string serverName, string severID)
+        private bool IsStreamOnline(Stream stream, string serverName, string serverID)
         {
             if(stream.Status != "online")
             {
-                AddAlert(
-                    FormatToOutString(stream, serverName, severID)
+                alerts.AddStreamAlert(
+                    stream.Application,
+                    stream.stream,
+                    serverName,
+                    serverID
                     );
+
+
                 return false;
             }
             return true;
-        }
-
-        private string FormatToOutString(Stream stream, string serverName, string severID, string addData = "")
-        {
-            return string.Format("<a href=\"https://wmspanel.com/nimble_live_streams/outgoing/{3}\">{0}/{1}</a> {4}\n      <i>Сервер: {2}</i>\n",
-                    stream.Application, stream.stream, serverName, severID, addData);
         }
 
         private bool IsServerOnline(Server server)
         {
             if (server.Status != "online")
             {
-                AddAlert("Server OFFLINE:" + server.Name);
+                //AddAlert("Server OFFLINE:" + server.Name);
                 return false;
             }
             return true;
-        }
-
-        private void AddUptimeAlert(string s)
-        {
-            uptimeAlerts.Add(new UptimeAlert(s));
-        }
-
-        private void AddLowBitrateAllert(string s)
-        {
-            lowBitrateAlertlerts.Add(new LowBitrateAlert(s));
-        }
-
-        private void AddAlert(string s)
-        {
-            Alerts.Add( new Alert(s) );
         }
     }
 }

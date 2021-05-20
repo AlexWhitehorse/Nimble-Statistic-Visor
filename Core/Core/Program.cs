@@ -19,7 +19,7 @@ namespace Core
 
             Console.WriteLine("" +
                 "Starting an app..\n" +
-                "Version 1.1.0" +
+                "Version 1.2.0" +
                 "");
 
             TelegramBot Bot = new TelegramBot("1822189604:AAFN_IacONeRdsayO5X9JnQkVvNzxpXGZdA");

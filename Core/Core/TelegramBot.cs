@@ -1,4 +1,6 @@
-﻿using Core.wms_pamel_procesor;
+﻿using Core.alerts;
+using Core.alerts.models;
+using Core.wms_pamel_procesor;
 using Core.wms_pamel_procesor.models;
 using System;
 using System.Collections.Generic;
@@ -10,12 +12,12 @@ namespace Core
 {
     class TelegramBot
     {
-        private TelegramBotClient bot;
+        private TelegramBotClient Bot;
         private Config config;
 
         public TelegramBot(string token)
         {
-            bot = new TelegramBotClient(token);
+            Bot = new TelegramBotClient(token);
         }
 
         public void AddConfig(Config config)
@@ -26,14 +28,14 @@ namespace Core
         public void Start()
         {
             AddMessageHendlers();
-            bot.StartReceiving();
+            Bot.StartReceiving();
             Console.ReadLine();
-            bot.StopReceiving();
+            Bot.StopReceiving();
         }
 
         private void AddMessageHendlers()
         {
-            bot.OnMessage += HandlerBotOnMessage;
+            Bot.OnMessage += HandlerBotOnMessage;
         }
 
 
@@ -41,22 +43,28 @@ namespace Core
         {
             if (e.Message.Type == Telegram.Bot.Types.Enums.MessageType.Text)
             {
-                if (e.Message.Text == "/g")
+                if (e.Message.Text == "/all")
                 {
                     SenMessageToUserAsync(e, "Wait a few seconds...");
 
                     try
                     {
                         var analyzer = GetAnalyzerResult();
+                        Alerts alerts = analyzer.getAlerts();
 
-                        string result = MakeResultStringAlerts("Не рабочие потоки:", analyzer.getAlerts());
-                        string bandwodthAlerts = MakeResultStringAlerts("Битрейт ниже " + config.BandwidthThreshold + ":", analyzer.GetBitrateAlerts());
-                        string uptimeAlerts = MakeResultStringAlerts("Uptime потока ниже " + config.UptimeTreshold + "мин. :", analyzer.GetUptimeAlerts());
+                        var uptimeAlerts = alerts.GetUptimeAlerts();
+                        var streamAlerts = alerts.GetStreamAlerts();
+                        var lowBitrateAlerts = alerts.GetLowBitrateAlert();
 
-
-                        SenMessageToUserAsync(e, bandwodthAlerts);
-                        SenMessageToUserAsync(e, uptimeAlerts);
-                        SenMessageToUserAsync(e, result);
+                        SenMessageToUserAsync(e, 
+                            MakeUptimeAlertMessage("Uptime потока ниже " + config.UptimeTreshold + "мин. :", uptimeAlerts)
+                            );
+                        SenMessageToUserAsync(e, 
+                            MakeStreamAlertMessage("Битрейт ниже " + config.BandwidthThreshold + ":", lowBitrateAlerts)
+                            );
+                        SenMessageToUserAsync(e,
+                            MakeStreamAlertMessage("Не рабочие потоки:", streamAlerts)
+                            );
                     }
                     catch (Exception es)
                     {
@@ -65,7 +73,11 @@ namespace Core
                 }
                 else
                 {
-                    SenMessageToUserAsync(e, "Help: \"/g\"");
+                    SenMessageToUserAsync(e,
+                        "Help: \n" +
+                        "/all - Вывод всей информиции о потоках" +
+                        "\n"
+                    );
                 }
             }
         }
@@ -77,7 +89,7 @@ namespace Core
 
         private void SenMessageToUserAsync(Telegram.Bot.Args.MessageEventArgs e, string text)
         {
-            bot.SendTextMessageAsync(e.Message.Chat.Id, text, Telegram.Bot.Types.Enums.ParseMode.Html);
+            Bot.SendTextMessageAsync(e.Message.Chat.Id, text, Telegram.Bot.Types.Enums.ParseMode.Html);
         }
 
         private Analyzer GetAnalyzerResult()
@@ -97,18 +109,48 @@ namespace Core
             }
         }
 
-        private string MakeResultStringAlerts<T>(string initMSG, List<T> alerts) where T : Alert
+        private string MakeStreamAlertMessage<T>(string initMsg, List<T> alerts) where T : Alert
+        {
+            if(alerts.Count == 0)
+            {
+                return "< b >" + initMsg + " </ b >\n\n Всё хорошо!)";
+            }
+            string result = "<b>" + initMsg + "</b>\n\n";
+
+            alerts.ForEach(x =>
+            {
+                result += string.Format(
+                    "<a href=\"https://wmspanel.com/nimble_live_streams/outgoing/{0}\">{1}/{2}</a> \n      <i>Сервер: {3}</i>\n",
+                    x.ServerID,
+                    x.Application,
+                    x.StreamName,
+                    x.ServerName
+                    );
+            });
+
+            return result;
+        }
+
+        private string MakeUptimeAlertMessage(string initMsg, List<alerts.models.UptimeAlert> alerts)
         {
             if (alerts.Count == 0)
             {
-                return "Все потоки работают";
+                return "< b >" + initMsg + " </ b >\n\n Всё хорошо!)";
             }
+            string result = "<b>" + initMsg + "</b>\n\n";
 
-            string result = initMSG + "\n\n";
-            for (int i = 0; i < alerts.Count; i++)
+            alerts.ForEach(x =>
             {
-                result += alerts[i].sence;
-            }
+                result += string.Format(
+                    "<a href=\"https://wmspanel.com/nimble_live_streams/outgoing/{0}\">{1}/{2}</a> {3} мин;\n      <i>Сервер: {4}</i>\n",
+                    x.ServerID,
+                    x.Application,
+                    x.StreamName,
+                    x.uptime,
+                    x.ServerName
+                    );
+            });
+
             return result;
         }
     }
