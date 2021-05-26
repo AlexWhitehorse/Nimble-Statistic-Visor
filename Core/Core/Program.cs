@@ -14,12 +14,12 @@ namespace Core
 
         static void Main(string[] args)
         {
-            config.BandwidthThreshold = 10000;
-            config.UptimeTreshold = 30;
+            config.BandwidthThreshold = 20000;
+            config.UptimeTreshold = 15;
 
             Console.WriteLine("" +
                 "Starting an app..\n" +
-                "Version 1.2.0" +
+                "Release version 1.2.0" +
                 "");
 
             TelegramBot Bot = new TelegramBot("1822189604:AAFN_IacONeRdsayO5X9JnQkVvNzxpXGZdA");

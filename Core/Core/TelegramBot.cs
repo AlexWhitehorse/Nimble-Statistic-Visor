@@ -113,7 +113,7 @@ namespace Core
         {
             if(alerts.Count == 0)
             {
-                return "< b >" + initMsg + " </ b >\n\n Всё хорошо!)";
+                return "<b>" + initMsg + "</b>\n\nВсе потоки работают";
             }
             string result = "<b>" + initMsg + "</b>\n\n";
 
