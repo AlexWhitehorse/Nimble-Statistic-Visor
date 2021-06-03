@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Telegram.Bot;
 
 namespace Core
@@ -15,9 +17,12 @@ namespace Core
         private TelegramBotClient Bot;
         private Config config;
 
+        private List<long> Chats;
+
         public TelegramBot(string token)
         {
             Bot = new TelegramBotClient(token);
+            Chats = new List<long>();
         }
 
         public void AddConfig(Config config)
@@ -29,6 +34,10 @@ namespace Core
         {
             AddMessageHendlers();
             Bot.StartReceiving();
+
+            // Запуск уведомлений по расписанию для пользователей
+            AlertsByTime().Start();
+
             Console.ReadLine();
             Bot.StopReceiving();
         }
@@ -38,48 +47,120 @@ namespace Core
             Bot.OnMessage += HandlerBotOnMessage;
         }
 
+        // Отправка сообщений по расписанию в config (точность 5 минут)
+        private Task AlertsByTime()
+        {
+            while(true)
+            {
+                int hour = DateTime.Now.Hour;
+                int minute = DateTime.Now.Minute;
+
+                if (compareTime(config.TimeAlertsCheck, hour, minute)) {
+                    Chats.ForEach(chatId =>
+                    {
+                        MakeCheckupAndSendMessagesToUser(chatId);
+                    });
+                }
+                Thread.Sleep(300000);
+            }
+        }
+
+        private bool compareTime(Dictionary<int, int> setTime, int hoursNow, int minNow)
+        {
+            if (setTime.ContainsKey(hoursNow))
+            {
+                int maxMinutes = setTime[hoursNow] + 5;
+                int minMinutes = setTime[hoursNow] - 2;
+
+                if (maxMinutes >= minNow &&
+                    minMinutes <= minNow)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         private void HandlerBotOnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
         {
             if (e.Message.Type == Telegram.Bot.Types.Enums.MessageType.Text)
             {
-                if (e.Message.Text == "/all")
+                long chatId = getTelegramChatId(e);
+                string message = e.Message.Text;
+
+                if (message == "/all")
                 {
-                    SenMessageToUserAsync(e, "Wait a few seconds...");
+                    SenMessageToUserAsync(chatId, "Wait a few seconds...");
 
                     try
                     {
-                        var analyzer = GetAnalyzerResult();
-                        Alerts alerts = analyzer.getAlerts();
-
-                        var uptimeAlerts = alerts.GetUptimeAlerts();
-                        var streamAlerts = alerts.GetStreamAlerts();
-                        var lowBitrateAlerts = alerts.GetLowBitrateAlert();
-
-                        SenMessageToUserAsync(e, 
-                            MakeUptimeAlertMessage("Uptime потока ниже " + config.UptimeTreshold + "мин. :", uptimeAlerts)
-                            );
-                        SenMessageToUserAsync(e, 
-                            MakeStreamAlertMessage("Битрейт ниже " + config.BandwidthThreshold + ":", lowBitrateAlerts)
-                            );
-                        SenMessageToUserAsync(e,
-                            MakeStreamAlertMessage("Не рабочие потоки:", streamAlerts)
-                            );
+                        MakeCheckupAndSendMessagesToUser(chatId);
                     }
                     catch (Exception es)
                     {
-                        SenMessageToUserAsync(e, es.Message);
+                        SenMessageToUserAsync(chatId, es.Message);
+                    }
+                }
+                else if (message == "/subscribe")
+                {
+                    if (!Chats.Contains(chatId))
+                    {
+                        Chats.Add(chatId);
+                        SenMessageToUserAsync(chatId, "Вы подписальсь на плновую проверку!");
+                    }
+                    else
+                    {
+                        SenMessageToUserAsync(chatId, "Вы уже подписаны на плановую проверку");
+                    }
+                }
+                else if (message == "/unsubscribe")
+                {
+                    if (Chats.Remove(chatId))
+                    {
+                        SenMessageToUserAsync(chatId, "Вы отписались от плановой проверки");
                     }
                 }
                 else
                 {
-                    SenMessageToUserAsync(e,
+                    SenMessageToUserAsync(chatId,
                         "Help: \n" +
-                        "/all - Вывод всей информиции о потоках" +
+                        "/all - Вывод всей информиции о потоках\n" +
+                        "/subscribe - Уведомления о плановой проверке \n" +
+                        "/unsubscribe" +
                         "\n"
                     );
                 }
             }
+        }
+
+        private long getTelegramChatId(Telegram.Bot.Args.MessageEventArgs e)
+        {
+            return e.Message.Chat.Id;
+        }
+
+        private void MakeCheckupAndSendMessagesToUser(long chatId)
+        {
+            var analyzer = GetAnalyzerResult();
+            Alerts alerts = analyzer.getAlerts();
+
+            var uptimeAlerts = alerts.GetUptimeAlerts();
+            var streamAlerts = alerts.GetStreamAlerts();
+            var lowBitrateAlerts = alerts.GetLowBitrateAlert();
+
+            SenMessageToUserAsync(chatId,
+                MakeUptimeAlertMessage("Uptime потока ниже " + config.UptimeTreshold + "мин. :", uptimeAlerts)
+                );
+            SenMessageToUserAsync(chatId,
+                MakeStreamAlertMessage("Битрейт ниже " + config.BandwidthThreshold + ":", lowBitrateAlerts)
+                );
+            SenMessageToUserAsync(chatId,
+                MakeStreamAlertMessage("Не рабочие потоки:", streamAlerts)
+                );
+        }
+
+        private Task AllertMessageSender()
+        {
+            throw new NotImplementedException();
         }
 
         private Connector CreateAPIConndectr()
@@ -87,9 +168,9 @@ namespace Core
             return new Connector(config);
         }
 
-        private void SenMessageToUserAsync(Telegram.Bot.Args.MessageEventArgs e, string text)
+        private void SenMessageToUserAsync(long chatId, string text)
         {
-            Bot.SendTextMessageAsync(e.Message.Chat.Id, text, Telegram.Bot.Types.Enums.ParseMode.Html);
+            Bot.SendTextMessageAsync(chatId, text, Telegram.Bot.Types.Enums.ParseMode.Html);
         }
 
         private Analyzer GetAnalyzerResult()
@@ -131,7 +212,7 @@ namespace Core
             return result;
         }
 
-        private string MakeUptimeAlertMessage(string initMsg, List<alerts.models.UptimeAlert> alerts)
+        private string MakeUptimeAlertMessage(string initMsg, List<UptimeAlert> alerts)
         {
             if (alerts.Count == 0)
             {

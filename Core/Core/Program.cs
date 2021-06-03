@@ -10,19 +10,26 @@ namespace Core
 {
     class Program
     {
-        static Config config = new Config("94089d98-b2a0-40e1-8732-094fbefe685c", "7227020af0181ba045ee7a528ff14637");
+        static Config config = new Config("", "");
 
         static void Main(string[] args)
         {
             config.BandwidthThreshold = 20000;
             config.UptimeTreshold = 15;
 
+            config.TimeAlertsCheck.Add(8,30);
+            config.TimeAlertsCheck.Add(12,0);
+            config.TimeAlertsCheck.Add(15,30);
+            config.TimeAlertsCheck.Add(19,0);
+            config.TimeAlertsCheck.Add(22,30);
+
             Console.WriteLine("" +
                 "Starting an app..\n" +
-                "Release version 1.2.0" +
+                "Release version 1.3.0" +
                 "");
 
-            TelegramBot Bot = new TelegramBot("1822189604:AAFN_IacONeRdsayO5X9JnQkVvNzxpXGZdA");
+            TelegramBot Bot = new TelegramBot("");
+
             Bot.AddConfig(config);
             Bot.Start();
         }
