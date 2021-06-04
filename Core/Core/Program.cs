@@ -16,6 +16,7 @@ namespace Core
         {
             config.BandwidthThreshold = 20000;
             config.UptimeTreshold = 15;
+            config.TimezoneOffset = -2;
 
             config.TimeAlertsCheck.Add(8,30);
             config.TimeAlertsCheck.Add(12,0);
@@ -25,7 +26,7 @@ namespace Core
 
             Console.WriteLine("" +
                 "Starting an app..\n" +
-                "Release version 1.3.0" +
+                "Release version 1.3.1" +
                 "");
 
             TelegramBot Bot = new TelegramBot("");

@@ -11,6 +11,8 @@ namespace Core.wms_pamel_procesor
         public int BandwidthThreshold { get; set; }
         public double UptimeTreshold { get; set; }
         public Dictionary<int, int> TimeAlertsCheck { get; set; }
+        public int TimezoneOffset { get; set; }
+
 
         public Config(string clientId, string apiKey)
         {

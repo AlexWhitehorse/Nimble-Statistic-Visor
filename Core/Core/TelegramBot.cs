@@ -67,10 +67,12 @@ namespace Core
 
         private bool compareTime(Dictionary<int, int> setTime, int hoursNow, int minNow)
         {
-            if (setTime.ContainsKey(hoursNow))
+            int hoursTimezone = hoursNow - config.TimezoneOffset;
+
+            if (setTime.ContainsKey(hoursTimezone))
             {
-                int maxMinutes = setTime[hoursNow] + 5;
-                int minMinutes = setTime[hoursNow] - 2;
+                int maxMinutes = setTime[hoursTimezone] + 5;
+                int minMinutes = setTime[hoursTimezone] - 2;
 
                 if (maxMinutes >= minNow &&
                     minMinutes <= minNow)
